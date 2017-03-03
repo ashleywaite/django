@@ -1104,3 +1104,21 @@ class OrderBy(BaseExpression):
 
     def desc(self):
         self.descending = True
+
+
+class CTERef(BaseExpression):
+    """ Insert a reference to the CTE field in the query """
+
+    def __init__(self, cte, field):
+        self.cte = cte
+        self._field = field
+
+    def as_sql(self, compiler, connection):
+        return "{}.{}".format(self.cte.alias, self._field), []
+
+    def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):
+        c = super().resolve_expression(query, allow_joins, reuse, summarize, for_save)
+        return c
+
+    def relabeled_clone(self, relabels):
+        return self

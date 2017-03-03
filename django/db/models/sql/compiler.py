@@ -398,6 +398,14 @@ class SQLCompiler:
             params.extend(part)
         return result, params
 
+    def get_ctes_sql(self):
+        if hasattr(self.query, "ctes") and self.query.ctes:
+            compiled = [self.compile(cte) for cte in self.query.ctes.values()]
+            if len(compiled) > 1:
+                result, params = zip(*compiled)
+                return " ".join(result), [].extend(*params)
+            return compiled[0][0], compiled[0][1]
+
     def as_sql(self, with_limits=True, with_col_aliases=False):
         """
         Create the SQL for this query. Return the SQL string and list of
@@ -418,6 +426,7 @@ class SQLCompiler:
             for_update_part = None
             where, w_params = self.compile(self.where) if self.where is not None else ("", [])
             having, h_params = self.compile(self.having) if self.having is not None else ("", [])
+            ctes, c_params = self.get_ctes_sql() if self.ctes is not None else ("", [])
 
             combinator = self.query.combinator
             features = self.connection.features
@@ -426,8 +435,15 @@ class SQLCompiler:
                     raise DatabaseError('{} not supported on this database backend.'.format(combinator))
                 result, params = self.get_combinator_sql(combinator, self.query.combinator_all)
             else:
-                result = ['SELECT']
+                result = []
                 params = []
+
+                # Add CTE clauses
+                if ctes:
+                    result.append(ctes)
+                    params.append(c_params)
+
+                result.append('SELECT')
 
                 if self.query.distinct:
                     result.append(self.connection.ops.distinct_sql(distinct_fields))
@@ -658,6 +674,10 @@ class SQLCompiler:
             # this is the only reference).
             if alias not in self.query.alias_map or self.query.alias_refcount[alias] == 1:
                 result.append(', %s' % self.quote_name_unless_alias(alias))
+        # Add CTEs
+        result.append(", {cte_names}".format(
+            cte_names=", ".join([alias for alias in self.query.ctes.keys()])))
+
         return result, params
 
     def get_related_selections(self, select, opts=None, root_alias=None, cur_depth=1,

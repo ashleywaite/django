@@ -16,7 +16,7 @@ from django.db import (
 from django.db.models import DateField, DateTimeField, sql
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.deletion import Collector
-from django.db.models.expressions import F
+from django.db.models.expressions import F, CTERef
 from django.db.models.fields import AutoField
 from django.db.models.functions import Trunc
 from django.db.models.query_utils import InvalidQuery, Q
@@ -741,6 +741,43 @@ class QuerySet:
     # PUBLIC METHODS THAT ALTER ATTRIBUTES AND RETURN A NEW QUERYSET #
     ##################################################################
 
+    def with_cte(self, *args, **kwargs):
+        """
+            Return a query set in which a CTE has been attached.
+        """
+        ctes = OrderedDict()  # To preserve ordering of args
+        for arg in args:
+            try:
+                if arg.default_alias in kwargs:
+                    raise ValueError("The named CTE '%s' conflicts with the "
+                                     "default name for another CTE."
+                                     % arg.default_alias)
+            except (AttributeError, TypeError):
+                raise TypeError("Complex annotations require an alias")
+            ctes[arg.default_alias] = arg
+        ctes.update(kwargs)
+
+        obj = self._clone()
+        names = getattr(self, '_fields', None)
+        if names is None:
+            names = {f.name for f in self.model._meta.get_fields()}
+
+        # Add the annotations to the query
+        for alias, cte in ctes.items():
+            if alias in names:
+                raise ValueError("The CTE '%s' conflicts with a field on "
+                                 "the model." % alias)
+            obj.query.add_cte(cte, alias)
+        # expressions need to be added to the query before we know if they contain aggregates
+        added_aggregates = []
+        for alias, annotation in obj.query.annotations.items():
+            if alias in annotations and annotation.contains_aggregate:
+                added_aggregates.append(alias)
+        if added_aggregates:
+            obj._setup_aggregate_query(list(added_aggregates))
+
+        return obj
+
     def all(self):
         """
         Return a new QuerySet that is a copy of the current one. This allows a
@@ -1246,6 +1283,98 @@ class RawQuerySet:
             name, column = field.get_attname_column()
             model_fields[converter(column)] = field
         return model_fields
+
+
+class CTE(QuerySet):
+    """ CTEs can be connected to a query to enable WITH style queries """
+    default_alias = "cte"
+
+    def __init__(self, model, values=None, fields=None, queryset=None, typed=False):
+        if isinstance(fields, str):
+            fields = [fields]
+
+        if values and queryset:
+            raise ValueError("Cannot set a queryset and manual values on a CTE")
+
+        if model:
+            self.default_alias = "cte_{}".format(model.__name__)
+
+        self.model = model
+        self.fields = fields
+        self.values = values
+        self.queryset = queryset
+        self.alias = self.default_alias
+        self.typed = typed
+
+    def set_alias(self, alias):
+        self.alias = "cte_{}".format(alias)
+
+    def build_field_map(self):
+        """ Based on the model supplied, build a database value prep_map for fields
+            This dict of lambdas will apply model database prep conversions as per
+             Django norm.
+        """
+
+        fm = OrderedDict()
+        # Create type savvy field conversion list
+        for field_name in self.fields:
+            if self.model and self.model._meta.get_field(field_name):
+                field = self.model._meta.get_field(field_name)
+                if not field.is_relation:
+                    fm[field_name] = lambda i, fn: self.model._meta.get_field(fn).get_prep_value(getattr(i, fn))
+                elif field.is_relation and field_name.endswith("_id"):
+                    fm[field_name] = lambda i, fn: getattr(i, fn)
+                elif field.is_relation:
+                    fm[field_name] = lambda i, fn: getattr(i, fn).id
+                else:
+                    raise TypeError("Field {} conversion isn't understood".format(field_name))
+            else:
+                fm[field_name] = lambda i, fn: getattr(i, fn)
+        return fm
+
+    def build_values(self, connection, force_id=False):
+        """ Generate the values section of this CTE """
+        field_map = self.build_field_map()
+        if force_id:
+            field_map["id"] = lambda i, fn: int(getattr(i, fn))
+
+        self.cte_def = "{alias} ({fields})".format(
+            alias=(self.alias or self.default_alias),
+            fields=", ".join(self.fields))
+
+        self.params = [
+            field_map[field_name](row, field_name) for field_name in self.fields
+            for row in self.values]
+
+        header_ph = "({})".format(
+            ", ".join(["%s::{type}".format(
+                type=self.model._meta.get_field(field_name).db_type(connection)) for field_name in self.fields]))
+        row_ph = "({})".format(", ".join(["%s"] * len(self.fields)))
+        full_ph = ", ".join([header_ph] + [row_ph] * (len(self.params) - 1))
+        self.values_sql = "VALUES {}".format(full_ph)
+
+    def build_queryset(self, connection):
+        if isinstance(self.queryset, QuerySet):
+            self.query_sql, self.params = self.queryset.as_sql(connection)
+            self.cte_def = (self.alias or self.default_alias)
+
+    def as_sql(self, compiler, connection):
+        if self.values:
+            self.build_values(connection)
+            sql = self.values_sql
+        if self.queryset:
+            self.build_queryset(connection)
+            sql = self.query_sql
+
+        print("This CTE has", len(self.params))
+        return "WITH {cte_def} AS ({sql})".format(
+            cte_def=self.cte_def,
+            sql=sql), tuple(self.params)
+
+    def ref(self, field):
+        if field in self.fields:
+            return CTERef(cte=self, field=field)
+        raise ValueError("The CTE {} doesn't contain a field {} to reference".format(self.alias, field))
 
 
 class Prefetch:

@@ -185,6 +185,8 @@ class Query:
         self.combinator_all = False
         self.combined_queries = ()
 
+        self.ctes = {}
+
         # These are for extensions. The contents are more or less appended
         # verbatim to the appropriate clause.
         # The _extra attribute is an OrderedDict, lazily created similarly to
@@ -305,6 +307,7 @@ class Query:
         obj.combinator = self.combinator
         obj.combinator_all = self.combinator_all
         obj.combined_queries = self.combined_queries
+        obj.ctes = self.ctes
         obj._extra = self._extra.copy() if self._extra is not None else None
         if self.extra_select_mask is None:
             obj.extra_select_mask = None
@@ -333,6 +336,10 @@ class Query:
             obj._setup_query()
         obj.context = self.context.copy()
         return obj
+
+    def add_cte(self, cte, alias):
+        """ Add a single CTE to the query """
+        self.ctes[alias] = cte
 
     def add_context(self, key, value):
         self.context[key] = value
