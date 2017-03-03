@@ -405,6 +405,7 @@ class SQLCompiler:
                 result, params = zip(*compiled)
                 return " ".join(result), [].extend(*params)
             return compiled[0][0], compiled[0][1]
+        return "", []
 
     def as_sql(self, with_limits=True, with_col_aliases=False):
         """
@@ -426,7 +427,7 @@ class SQLCompiler:
             for_update_part = None
             where, w_params = self.compile(self.where) if self.where is not None else ("", [])
             having, h_params = self.compile(self.having) if self.having is not None else ("", [])
-            ctes, c_params = self.get_ctes_sql() if self.ctes is not None else ("", [])
+            ctes, c_params = self.get_ctes_sql() if self.query.ctes is not None else ("", [])
 
             combinator = self.query.combinator
             features = self.connection.features
@@ -441,7 +442,7 @@ class SQLCompiler:
                 # Add CTE clauses
                 if ctes:
                     result.append(ctes)
-                    params.append(c_params)
+                    params.extend(c_params)
 
                 result.append('SELECT')
 
