@@ -1114,7 +1114,10 @@ class CTERef(BaseExpression):
         self._field = field
 
     def as_sql(self, compiler, connection):
-        return "{}.{}".format(self.cte.alias, self._field), []
+        try:
+            return "{}.{}".format(self.cte.query.cte_alias, self._field), []
+        except AttributeError:
+            raise TypeError("CTE References must be performed on queries used as CTEs")
 
     def resolve_expression(self, query=None, allow_joins=True, reuse=None, summarize=False, for_save=False):
         c = super().resolve_expression(query, allow_joins, reuse, summarize, for_save)

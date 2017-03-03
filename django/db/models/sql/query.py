@@ -337,6 +337,9 @@ class Query:
         obj.context = self.context.copy()
         return obj
 
+    def _as_cte(self, cte_prefix, using=DEFAULT_DB_ALIAS):
+        return self.get_compiler(using).as_cte(cte_prefix)
+
     def add_cte(self, cte, alias):
         """ Add a single CTE to the query """
         self.ctes[alias] = cte

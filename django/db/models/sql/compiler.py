@@ -398,14 +398,46 @@ class SQLCompiler:
             params.extend(part)
         return result, params
 
-    def get_ctes_sql(self):
+    def get_ctes_sql(self, cte_prefix="cte"):
         if hasattr(self.query, "ctes") and self.query.ctes:
-            compiled = [self.compile(cte) for cte in self.query.ctes.values()]
-            if len(compiled) > 1:
-                result, params = zip(*compiled)
-                return " ".join(result), [].extend(*params)
-            return compiled[0][0], compiled[0][1]
+            sql, params = [], []
+
+            result, p_result = zip(
+                *[qs.query._as_cte(cte_prefix + i)
+                for i, qs in enumerate(self.query.ctes.values())])
+            return ", ".join(result), [].extend(*params)
         return "", []
+
+    def as_cte(self, cte_alias):
+        c_sql, c_params, ctes = [], [], None
+        if self.query.ctes:
+            ctes = self.query.ctes
+            c_sql, c_params = self.get_ctes_sql(cte_alias)
+            self.query.ctes = None
+        s_sql, s_params = self.compile(self)
+        if ctes:
+            self.query.ctes = ctes
+        fields, f_params = self.query.get_return_fields()
+        s_sql = "{alias} ({fields}) AS ({sql})".format(
+            alias=cte_alias,
+            fields=", ".join(field for field in fields),
+            sql=s_sql
+        )
+        self.query.cte_alias = cte_alias
+        return ", ".join([c_sql, s_sql]), c_params + f_params + s_params
+
+    def get_return_fields(self):
+        cols, params = [], []
+        col_idx = 1
+        for _, (s_sql, s_params), alias in self.select + extra_select:
+            if alias:
+                s_sql = self.connection.ops.quote_name(alias)
+            elif with_col_aliases:
+                s_sql = 'Col%d' % col_idx
+                col_idx += 1
+            params.extend(s_params)
+            cols.append(s_sql)
+        return cols, params
 
     def as_sql(self, with_limits=True, with_col_aliases=False):
         """
@@ -441,6 +473,7 @@ class SQLCompiler:
 
                 # Add CTE clauses
                 if ctes:
+                    result.append("WITH")
                     result.append(ctes)
                     params.extend(c_params)
 
@@ -1276,6 +1309,97 @@ class SQLAggregateCompiler(SQLCompiler):
         sql = 'SELECT %s FROM (%s) subquery' % (sql, self.query.subquery)
         params = params + self.query.sub_params
         return sql, params
+
+
+class SQLLiteralCompiler(SQLCompiler):
+
+    def build_field_map(self, fields):
+        """ Based on the model supplied, build a database value prep_map for fields
+            This dict of lambdas will apply model database prep conversions as per
+             Django norm.
+            As literal sets are simplistic, this can be generated once instead of
+             checking per object.
+        """
+
+        fm = OrderedDict()
+        # Create type savvy field conversion list
+        for field in fields:
+            if not field.is_relation:
+                fm[field] = lambda f, i: f.get_prep_value(getattr(i, f.name))
+            elif field.is_relation and field.name.endswith("_id"):
+                fm[field] = lambda f, i: getattr(i, f.name)
+            elif field.is_relation:
+                fm[field] = lambda f, i: getattr(i, f.name).id
+            else:
+                fm[field] = lambda f, i: getattr(i, f.name)
+        return fm
+
+
+    def assemble_raw_as_sql(self, value_rows):
+        if not value_rows:
+            return [], []
+
+        fields = range(len(value_rows[0]))
+        params = [
+            row[field] for x in fields for row in value_rows
+        ]
+
+        row_ph = "({})".format(", ".join(["%s"] * len(fields)))
+        sql = ", ".join([row_ph] * len(value_rows))
+        return sql, params
+
+    def assemble_named_as_sql(self, fields, value_rows):
+        if not value_rows:
+            return [], []
+
+        params = [
+            getattr(row, field) for field in fields
+            for row in value_rows]
+
+        row_ph = "({})".format(", ".join(["%s"] * len(fields)))
+        sql = ", ".join([row_ph] * len(value_rows))
+        return sql, params
+
+    def assemble_fields_as_sql(self, fields, value_rows):
+        """
+        Take a sequence of N fields and a sequence of M rows of values, and
+        generate placeholder SQL and parameters for each field and value.
+        Return a pair containing:
+         * a sequence of M rows of N SQL placeholder strings, and
+         * a sequence of M rows of corresponding parameter values.
+
+        Each placeholder string may contain any number of '%s' interpolation
+        strings, and each parameter row will contain exactly as many params
+        as the total number of '%s's in the corresponding placeholder row.
+        """
+        if not value_rows:
+            return [], []
+
+        field_map = self.build_field_map(fields)
+        params = [
+            field_map[field](row, field) for field in fields
+            for row in value_rows]
+
+        header_ph = "({})".format(
+            ", ".join(["%s::{type}".format(
+                type=field.db_type(connection)) for field in fields]))
+        row_ph = "({})".format(", ".join(["%s"] * len(fields)))
+        sql = ", ".join([header_ph] + [row_ph] * (len(fields) - 1))
+
+        return sql, params
+
+    def as_sql(self):
+        """ Create the SQL for a set of literal values used as a CTE """
+
+        if self.query.fields:
+            values_sql, params = assemble_fields_as_sql(self.query.fields, self.query.objs)
+        elif self.query.field_names:
+            values_sql, params = assemble_named_as_sql(self.query.field_names, self.query.objs)
+        else:
+            values_sql, params = assemble_raw_as_sql(self.query.objs)
+
+        return "VALUES {}".format(values_sql), params
+
 
 
 def cursor_iter(cursor, sentinel, col_count):

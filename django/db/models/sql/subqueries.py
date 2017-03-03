@@ -10,7 +10,7 @@ from django.db.models.sql.constants import (
 )
 from django.db.models.sql.query import Query
 
-__all__ = ['DeleteQuery', 'UpdateQuery', 'InsertQuery', 'AggregateQuery']
+__all__ = ['DeleteQuery', 'UpdateQuery', 'InsertQuery', 'AggregateQuery', 'LiteralQuery']
 
 
 class DeleteQuery(Query):
@@ -192,3 +192,29 @@ class AggregateQuery(Query):
     def add_subquery(self, query, using):
         query.subquery = True
         self.subquery, self.sub_params = query.get_compiler(using).as_sql(with_col_aliases=True)
+
+
+class LiteralQuery(Query):
+    compiler = 'SQLLiteralCompiler'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields = None
+        self.field_names = None
+        self.objs = []
+
+    def set_fields(self, field_names):
+        if self.model:
+            self.field_names = field_names
+            self.fields = [self.model._meta.get_field(field_name) for field_name in field_names]
+        else:
+            self.field_names = field_names
+
+    def clear_values(self):
+        self.objs = []
+
+    def append_values(self, objs, fields=None):
+        self.objs.extend(objs)
+
+    def get_return_fields(self):
+        return self.field_names, []

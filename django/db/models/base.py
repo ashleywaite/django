@@ -21,7 +21,7 @@ from django.db.models.fields.related import (
 )
 from django.db.models.manager import Manager
 from django.db.models.options import Options
-from django.db.models.query import Q
+from django.db.models.query import Q, LiteralQuerySet
 from django.db.models.signals import (
     class_prepared, post_init, post_save, pre_init, pre_save,
 )
@@ -493,6 +493,10 @@ class Model(metaclass=ModelBase):
         new._state.adding = False
         new._state.db = db
         return new
+
+    @classmethod
+    def as_literal(cls, using=None):
+        return LiteralQuerySet(model=cls, using=using)
 
     def __repr__(self):
         try:
