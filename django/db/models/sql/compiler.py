@@ -676,8 +676,9 @@ class SQLCompiler:
             if alias not in self.query.alias_map or self.query.alias_refcount[alias] == 1:
                 result.append(', %s' % self.quote_name_unless_alias(alias))
         # Add CTEs
-        result.append(", {cte_names}".format(
-            cte_names=", ".join([alias for alias in self.query.ctes.keys()])))
+        if self.query.ctes:
+            result.append(", {cte_names}".format(
+                cte_names=", ".join([alias for alias in self.query.ctes.keys()])))
 
         return result, params
 
