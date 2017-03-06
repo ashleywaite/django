@@ -674,10 +674,6 @@ class SQLCompiler:
             # this is the only reference).
             if alias not in self.query.alias_map or self.query.alias_refcount[alias] == 1:
                 result.append(', %s' % self.quote_name_unless_alias(alias))
-        # Add CTEs
-        if self.query.ctes:
-            result.append(", {cte_names}".format(
-                cte_names=", ".join([alias for alias in self.query.ctes.keys()])))
 
         return result, params
 
@@ -1277,7 +1273,22 @@ class SQLAggregateCompiler(SQLCompiler):
         return sql, params
 
 
-class SQLWithCompiler(SQLCompiler):
+class SQLWithCompiler():
+
+    def __init__(self, query, connection, using):
+        self.query = query
+        self.connection = connection
+        self.using = using
+        self.quote_cache = {'*': '*'}
+        # The select, klass_info, and annotations are needed by QuerySet.iterator()
+        # these are set as a side-effect of executing the query. Note that we calculate
+        # separately a list of extra select columns needed for grammatical correctness
+        # of the query, but these columns are not included in self.select.
+        self.select = None
+        self.annotation_col_map = None
+        self.klass_info = None
+        self.ordering_parts = re.compile(r'(.*)\s(ASC|DESC)(.*)')
+        self.base_compiler = self.query.base_query.get_compiler(using, connection)
 
     def as_sql(self):
         # Collect all with queries to compile
@@ -1300,11 +1311,26 @@ class SQLWithCompiler(SQLCompiler):
             params.extend(f_params)
             params.extend(w_params)
 
-        b_sql, b_params = self.query.base_query.get_compiler(self.using, self.connection).as_sql()
+        self.query.base_query.extra_tables += tuple(query.with_alias for query in self.query.queries)
+
+        b_sql, b_params = self.base_compiler.as_sql()
         result.append(b_sql)
         params.extend(b_params)
 
         return " ".join(result), tuple(params)
+
+    def get_from_clause(self):
+        f_sql, f_params = super().get_from_clause()
+        print("get_from_clause", self.query.queries)
+        # Add with_queries
+        w_sql = (", {}".format(
+            ", ".join([query.with_alias for query in self.query.queries])))
+
+        return ", ".join([f_sql] + [w_sql]), f_params
+
+    def __getattr__(self, attr):
+        # Pretend to be the compiler of the base query unless it's specific to this
+        return getattr(self.base_compiler, attr)
 
 
 class SQLLiteralCompiler(SQLCompiler):

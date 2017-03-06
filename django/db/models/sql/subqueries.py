@@ -198,8 +198,6 @@ class WithQuery(Query):
     compiler = 'SQLWithCompiler'
 
     def __init__(self, base_query, *args, **kwargs):
-        super().__init__(model=base_query.model, *args, **kwargs)
-
         self.base_query = base_query
         self.queries = []
 
@@ -223,8 +221,8 @@ class WithQuery(Query):
         return queries
 
     def clone(self):
-        clone = super().clone()
-        clone.base_query = self.base_query
+        base_clone = self.base_query.clone()
+        clone = WithQuery(base_clone)
         clone.queries = self.queries
         return clone
 

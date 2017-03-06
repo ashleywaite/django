@@ -742,26 +742,6 @@ class QuerySet:
     # PUBLIC METHODS THAT ALTER ATTRIBUTES AND RETURN A NEW QUERYSET #
     ##################################################################
 
-    def with_cte(self, *args, **kwargs):
-        """
-            Return a query set in which a CTE has been attached.
-        """
-        ctes = OrderedDict()  # To preserve ordering of args
-        for arg in args:
-            ctes[arg.alias] = arg
-        ctes.update(kwargs)
-
-        obj = self._clone()
-        names = getattr(self, '_fields', None)
-        if names is None:
-            names = {f.name for f in self.model._meta.get_fields()}
-
-        # Add the querysets as ctes to the query
-        for alias, cte in ctes.items():
-            obj.query.add_cte(cte, alias)
-
-        return obj
-
     def with_query(self, query):
         if not isinstance(self.query, sql.WithQuery):
             self.query = sql.WithQuery(self.query)
