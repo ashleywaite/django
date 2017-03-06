@@ -12,7 +12,9 @@ from django.db.models.sql.constants import (
 )
 from django.db.models.sql.query import Query
 
-__all__ = ['DeleteQuery', 'UpdateQuery', 'InsertQuery', 'AggregateQuery', 'LiteralQuery', 'WithQuery']
+__all__ = [
+    'DeleteQuery', 'UpdateQuery', 'InsertQuery', 'AggregateQuery',
+    'LiteralQuery', 'WithQuery', 'InsertReturningQuery']
 
 
 class DeleteQuery(Query):
@@ -181,6 +183,20 @@ class InsertQuery(Query):
         self.fields = fields
         self.objs = objs
         self.raw = raw
+
+
+class InsertReturningQuery(InsertQuery):
+    compiler = 'SQLInsertReturningCompiler'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.returning = []
+
+    def set_returning(self, fields):
+        self.returning = fields
+
+    def get_return_fields(self):
+        return [field for field in self.returning], []
 
 
 class AggregateQuery(Query):

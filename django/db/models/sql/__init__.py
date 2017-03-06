@@ -3,4 +3,4 @@ from django.db.models.sql.query import *  # NOQA
 from django.db.models.sql.subqueries import *  # NOQA
 from django.db.models.sql.where import AND, OR
 
-__all__ = ['Query', 'AND', 'OR', 'EmptyResultSet', 'LiteralQuery', 'WithQuery']
+__all__ = ['Query', 'AND', 'OR', 'EmptyResultSet']

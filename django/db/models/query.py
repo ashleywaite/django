@@ -749,10 +749,12 @@ class QuerySet:
         self.query.add_with(query)
         return self
 
-    def with_insert(self, qs, objs):
-        query = sql.InsertQuery(qs.model)
-        # Extract fields?
+    def with_insert(self, model, objs, fields=None, returning=None, raw=False):
+        query = sql.InsertReturningQuery(model)
+        if fields:
+            fields = [model._meta.get_field(f) for f in fields]
         query.insert_values(fields, objs, raw=raw)
+        query.set_returning(returning)
         return self.with_query(query)
 
     def with_select(self, qs):

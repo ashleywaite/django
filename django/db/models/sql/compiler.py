@@ -1274,6 +1274,23 @@ class SQLAggregateCompiler(SQLCompiler):
         return sql, params
 
 
+class SQLInsertReturningCompiler(SQLInsertCompiler):
+
+    def as_sql(self):
+        [(i_sql, i_params)] = super().as_sql()
+        print("i_sql is", i_sql)
+        print("i_params is", i_params)
+        # Needs aliases and colnames
+        if self.query.returning:
+            fields, f_params = self.query.get_return_fields()
+            i_sql = "{sql} RETURNING ({fields})".format(
+                sql=i_sql,
+                fields=", ".join(field for field in fields)
+            )
+            i_params = i_params + tuple(f_params)
+        return i_sql, i_params
+
+
 class SQLWithCompiler():
 
     def __init__(self, query, connection, using):
@@ -1296,10 +1313,16 @@ class SQLWithCompiler():
             w_sql, w_params = query.get_compiler(self.using, self.connection).as_sql()
 
             # Needs aliases and colnames
-            fields, f_params = query.get_return_fields()
-            w_sql = "{alias} ({fields}) AS ({sql})".format(
+            if hasattr(query, 'get_return_fields'):
+                fields, f_params = query.get_return_fields()
+                fields = " ({fields})".format(
+                    fields=", ".join(field for field in fields)
+                )
+            else:
+                fields, f_params = "", []
+            w_sql = "{alias}{fields} AS ({sql})".format(
                 alias=query.with_alias,
-                fields=", ".join(field for field in fields),
+                fields=fields,
                 sql=w_sql
             )
             result.append(w_sql)
