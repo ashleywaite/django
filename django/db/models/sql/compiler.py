@@ -1343,26 +1343,29 @@ class SQLLiteralCompiler(SQLCompiler):
                 fm[field] = lambda f, i: getattr(i, f.name)
         return fm
 
-    def assemble_raw_as_sql(self, value_rows):
-        if not value_rows:
-            return [], []
-
+    def assemble_raw_params(self, value_rows):
         fields = range(len(value_rows[0]))
-        params = [
+        return [
             row[field] for x in fields for row in value_rows
         ]
 
-        row_ph = "({})".format(", ".join(["%s"] * len(fields)))
-        sql = ", ".join([row_ph] * len(value_rows))
-        return sql, params
+    def assemble_named_params(self, value_rows, field_names):
+        return [
+            getattr(row, field) for field in field_names
+            for row in value_rows]
 
-    def assemble_named_as_sql(self, fields, value_rows):
+    def assemble_as_sql(self, value_rows, field_names=None):
+        """
+        Generate placeholder and parameter rows from objects with named attribtues
+         that correspond with the field names.
+        """
         if not value_rows:
             return [], []
 
-        params = [
-            getattr(row, field) for field in fields
-            for row in value_rows]
+        if field_names and self.has_named_attrs():
+            params = assemble_named_params(value_rows, field_names)
+        else:
+            params = assemble_raw_params(value_rows)
 
         row_ph = "({})".format(", ".join(["%s"] * len(fields)))
         sql = ", ".join([row_ph] * len(value_rows))
@@ -1410,15 +1413,21 @@ class SQLLiteralCompiler(SQLCompiler):
             sql = '%s'
         return sql
 
+    def has_named_attrs(self):
+        return all([
+            hasattr(self.query.objs[0], field)
+            for field in self.query.field_names
+        ])
+
     def as_sql(self):
         """ Create the SQL for a set of literal values used as a CTE """
 
         if self.query.fields:
-            values_sql, params = self.assemble_fields_as_sql(self.query.fields, self.query.objs)
-        elif self.query.field_names:
-            values_sql, params = self.assemble_named_as_sql(self.query.field_names, self.query.objs)
+            values_sql, params = self.assemble_fields_as_sql(
+                fields=self.query.fields, value_rows=self.query.objs)
         else:
-            values_sql, params = self.assemble_raw_as_sql(self.query.objs)
+            values_sql, params = self.assemble_as_sql(
+                field_names=self.query.field_names, value_rows=self.query.objs)
 
         return "VALUES {}".format(values_sql), params
 

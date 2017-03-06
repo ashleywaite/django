@@ -253,11 +253,9 @@ class LiteralQuery(Query):
         self.objs = []
 
     def set_fields(self, field_names):
+        self.field_names = field_names
         if self.model:
-            self.field_names = field_names
             self.fields = [self.model._meta.get_field(field_name) for field_name in field_names]
-        else:
-            self.field_names = field_names
 
     def clear_values(self):
         self.objs = []
