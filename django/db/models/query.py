@@ -762,6 +762,25 @@ class QuerySet:
 
         return obj
 
+    def with_query(self, query):
+        if not isinstance(self.query, sql.WithQuery):
+            self.query = sql.WithQuery(self.query)
+
+        self.query.add_with(query)
+        return self
+
+    def with_insert(self, qs, objs):
+        query = sql.InsertQuery(qs.model)
+        # Extract fields?
+        query.insert_values(fields, objs, raw=raw)
+        return self.with_query(query)
+
+    def with_select(self, qs):
+        return self.with_query(qs.query)
+
+    def with_literals(self, qs):
+        pass
+
     def all(self):
         """
         Return a new QuerySet that is a copy of the current one. This allows a
@@ -1143,7 +1162,7 @@ class QuerySet:
 
     def ref(self, field):
         # These are not validated
-        return CTERef(cte=self, field=field)
+        return CTERef(cte=self.query, field=field)
 
 
 class InstanceCheckMeta(type):

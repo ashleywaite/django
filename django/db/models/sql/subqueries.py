@@ -10,7 +10,7 @@ from django.db.models.sql.constants import (
 )
 from django.db.models.sql.query import Query
 
-__all__ = ['DeleteQuery', 'UpdateQuery', 'InsertQuery', 'AggregateQuery', 'LiteralQuery']
+__all__ = ['DeleteQuery', 'UpdateQuery', 'InsertQuery', 'AggregateQuery', 'LiteralQuery', 'WithQuery']
 
 
 class DeleteQuery(Query):
@@ -192,6 +192,45 @@ class AggregateQuery(Query):
     def add_subquery(self, query, using):
         query.subquery = True
         self.subquery, self.sub_params = query.get_compiler(using).as_sql(with_col_aliases=True)
+
+
+class WithQuery(Query):
+    compiler = 'SQLWithCompiler'
+
+    def __init__(self, base_query, *args, **kwargs):
+        super().__init__(model=base_query.model, *args, **kwargs)
+
+        self.base_query = base_query
+        self.queries = []
+
+    def add_with(self, query):
+        self.queries.append(query)
+
+    def collect_queries(self, with_alias="cte"):
+        queries = []
+
+        # Collect all queries attached to this or any attached queries
+        for i, query in enumerate(self.queries):
+            query_alias = "{}_{}".format(with_alias, i)
+            if isinstance(query, WithQuery):
+                query.base_query.with_alias = query_alias
+                queries.extend(query.collect_queries(with_alias=query_alias))
+                queries.append(query.base_query)
+            else:
+                query.with_alias = query_alias
+                queries.append(query)
+
+        return queries
+
+    def clone(self):
+        clone = super().clone()
+        clone.base_query = self.base_query
+        clone.queries = self.queries
+        return clone
+
+    def __getattr__(self, attr):
+        # Pass through any attributes to base query
+        return getattr(self.base_query, attr)
 
 
 class LiteralQuery(Query):
