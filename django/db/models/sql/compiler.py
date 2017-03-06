@@ -1,6 +1,7 @@
 import re
 from itertools import chain
 from collections import OrderedDict
+from types import MethodType
 
 from django.core.exceptions import EmptyResultSet, FieldError
 from django.db.models.constants import LOOKUP_SEP
@@ -838,6 +839,8 @@ class SQLCompiler:
 
     def results_iter(self, results=None):
         """Return an iterator over the results from executing this query."""
+        print("Iter with query", self)
+        print("In iter, sql will be", self.as_sql())
         if results is None:
             results = self.execute_sql(MULTI)
         fields = [s[0] for s in self.select[0:self.col_count]]
@@ -882,6 +885,7 @@ class SQLCompiler:
                 return iter([])
             else:
                 return
+        print("SQL is", sql)
         if chunked_fetch:
             cursor = self.connection.chunked_cursor()
         else:
@@ -1330,7 +1334,10 @@ class SQLWithCompiler():
 
     def __getattr__(self, attr):
         # Pretend to be the compiler of the base query unless it's specific to this
-        return getattr(self.base_compiler, attr)
+        base_attr = getattr(self.base_compiler, attr)
+        if callable(base_attr):
+            return MethodType(base_attr, self)
+        return base_attr
 
 
 class SQLLiteralCompiler(SQLCompiler):

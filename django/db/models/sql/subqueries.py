@@ -2,6 +2,8 @@
 Query subclasses which provide extra functionality beyond simple data retrieval.
 """
 
+from types import MethodType
+
 from django.core.exceptions import FieldError
 from django.db import connections
 from django.db.models.query_utils import Q
@@ -194,7 +196,7 @@ class AggregateQuery(Query):
         self.subquery, self.sub_params = query.get_compiler(using).as_sql(with_col_aliases=True)
 
 
-class WithQuery(Query):
+class WithQuery():
     compiler = 'SQLWithCompiler'
 
     def __init__(self, base_query, *args, **kwargs):
@@ -227,8 +229,11 @@ class WithQuery(Query):
         return clone
 
     def __getattr__(self, attr):
-        # Pass through any attributes to base query
-        return getattr(self.base_query, attr)
+        # Pretend to be the base query unless it's specific to this
+        base_attr = getattr(self.base_query, attr)
+        if callable(base_attr):
+            return MethodType(getattr(self.base_query.__class__, attr), self)
+        return base_attr
 
 
 class LiteralQuery(Query):
