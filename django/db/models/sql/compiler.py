@@ -839,8 +839,6 @@ class SQLCompiler:
 
     def results_iter(self, results=None):
         """Return an iterator over the results from executing this query."""
-        print("Iter with query", self)
-        print("In iter, sql will be", self.as_sql())
         if results is None:
             results = self.execute_sql(MULTI)
         fields = [s[0] for s in self.select[0:self.col_count]]
@@ -885,7 +883,6 @@ class SQLCompiler:
                 return iter([])
             else:
                 return
-        print("SQL is", sql)
         if chunked_fetch:
             cursor = self.connection.chunked_cursor()
         else:
@@ -1318,15 +1315,6 @@ class SQLWithCompiler():
         params.extend(b_params)
 
         return " ".join(result), tuple(params)
-
-    def get_from_clause(self):
-        f_sql, f_params = super().get_from_clause()
-        print("get_from_clause", self.query.queries)
-        # Add with_queries
-        w_sql = (", {}".format(
-            ", ".join([query.with_alias for query in self.query.queries])))
-
-        return ", ".join([f_sql] + [w_sql]), f_params
 
     def __getattr__(self, attr):
         # Pretend to be the compiler of the base query unless it's specific to this
