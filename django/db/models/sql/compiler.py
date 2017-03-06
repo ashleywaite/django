@@ -1401,14 +1401,29 @@ class SQLLiteralCompiler(SQLCompiler):
             field_map[field](field, row) for field in fields
             for row in value_rows]
 
-        header_ph = "({})".format(
-            ", ".join(["%s::{type}".format(
-                type=field.db_type(self.connection)) for field in fields]))
-        row_ph = "({})".format(", ".join(["%s"] * len(fields)))
+        print("types are", ", ".join([str(p.__class__) for p in params]))
+
+        header_ph = "({})".format(", ".join(["{ph}::{type}".format(
+            ph=self.get_field_placeholder(field, params[i]),
+            type=field.db_type(self.connection))
+            for i, field in enumerate(fields)]))
+        row_ph = "({})".format(", ".join([
+            self.get_field_placeholder(field, params[i])
+            for i, field in enumerate(fields)]))
         sql = ", ".join([header_ph] + [row_ph] * (len(value_rows) - 1))
 
         assert len(fields) * len(value_rows) == len(params), "Values set params not matched"
         return sql, params
+
+    def get_field_placeholder(self, field, val):
+        if hasattr(field, 'get_placeholder'):
+            # Some fields (e.g. geo fields) need special munging before
+            # they can be inserted.
+            sql, _ = field.get_placeholder(val, self, self.connection), [val]
+        else:
+            # Return the common case for the placeholder
+            sql = '%s'
+        return sql
 
     def as_sql(self):
         """ Create the SQL for a set of literal values used as a CTE """
