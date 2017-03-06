@@ -196,7 +196,7 @@ class AggregateQuery(Query):
         self.subquery, self.sub_params = query.get_compiler(using).as_sql(with_col_aliases=True)
 
 
-class WithQuery():
+class WithQuery(Query):
     compiler = 'SQLWithCompiler'
 
     def __init__(self, base_query, *args, **kwargs):
@@ -228,12 +228,12 @@ class WithQuery():
         clone.queries = self.queries
         return clone
 
+    def set_values(self, fields):
+        self.base_query.set_values(fields)
+
     def __getattr__(self, attr):
         # Pretend to be the base query unless it's specific to this
-        base_attr = getattr(self.base_query, attr)
-        if callable(base_attr):
-            return MethodType(getattr(self.base_query.__class__, attr), self)
-        return base_attr
+        return getattr(self.base_query, attr)
 
 
 class LiteralQuery(Query):

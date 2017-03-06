@@ -1283,15 +1283,10 @@ class SQLWithCompiler():
         self.query = query
         self.connection = connection
         self.using = using
-        self.quote_cache = {'*': '*'}
         # The select, klass_info, and annotations are needed by QuerySet.iterator()
         # these are set as a side-effect of executing the query. Note that we calculate
         # separately a list of extra select columns needed for grammatical correctness
         # of the query, but these columns are not included in self.select.
-        self.select = None
-        self.annotation_col_map = None
-        self.klass_info = None
-        self.ordering_parts = re.compile(r'(.*)\s(ASC|DESC)(.*)')
         self.base_compiler = self.query.base_query.get_compiler(using, connection)
 
     def as_sql(self):
@@ -1302,7 +1297,6 @@ class SQLWithCompiler():
 
         for query in with_queries:
             w_sql, w_params = query.get_compiler(self.using, self.connection).as_sql()
-            print("With query is processing", query.__class__, w_sql[:200])
 
             # Needs aliases and colnames
             fields, f_params = query.get_return_fields()
@@ -1315,7 +1309,9 @@ class SQLWithCompiler():
             params.extend(f_params)
             params.extend(w_params)
 
-        self.query.base_query.extra_tables += tuple(query.with_alias for query in self.query.queries)
+        self.query.base_query.extra_tables += tuple([
+            query.with_alias for query in self.query.queries
+            if query.with_alias not in self.query.base_query.extra_tables])
 
         b_sql, b_params = self.base_compiler.as_sql()
         result.append(b_sql)
@@ -1336,7 +1332,7 @@ class SQLWithCompiler():
         # Pretend to be the compiler of the base query unless it's specific to this
         base_attr = getattr(self.base_compiler, attr)
         if callable(base_attr):
-            return MethodType(base_attr, self)
+            return MethodType(getattr(self.base_compiler.__class__, attr), self)
         return base_attr
 
 
@@ -1407,8 +1403,6 @@ class SQLLiteralCompiler(SQLCompiler):
         params = [
             field_map[field](field, row) for field in fields
             for row in value_rows]
-
-        print("types are", ", ".join([str(p.__class__) for p in params]))
 
         header_ph = "({})".format(", ".join(["{ph}::{type}".format(
             ph=self.get_field_placeholder(field, params[i]),
