@@ -1306,10 +1306,6 @@ class SQLWithCompiler():
             params.extend(f_params)
             params.extend(w_params)
 
-        self.query.base_query.extra_tables += tuple([
-            query.with_alias for query in self.query.queries
-            if query.with_alias not in self.query.base_query.extra_tables])
-
         b_sql, b_params = self.base_compiler.as_sql()
         result.append(b_sql)
         params.extend(b_params)

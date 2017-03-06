@@ -220,7 +220,14 @@ class WithQuery(Query):
                 query.with_alias = query_alias
                 queries.append(query)
 
+        self.add_extra_tables(queries)
+
         return queries
+
+    def add_extra_tables(self, queries):
+        self.base_query.extra_tables += tuple([
+            query.with_alias for query in queries
+            if query.with_alias not in self.base_query.extra_tables])
 
     def clone(self):
         base_clone = self.base_query.clone()
