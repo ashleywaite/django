@@ -495,8 +495,8 @@ class Model(metaclass=ModelBase):
         return new
 
     @classmethod
-    def as_literal(cls, using=None):
-        return LiteralQuerySet(model=cls, using=using)
+    def as_literal(cls, values=None, using=None):
+        return LiteralQuerySet(model=cls, values=values, using=using)
 
     def __repr__(self):
         try:

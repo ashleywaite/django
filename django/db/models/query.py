@@ -1274,16 +1274,12 @@ class RawQuerySet:
 
 class LiteralQuerySet(QuerySet):
     """ CTEs can be connected to a query to enable WITH style queries """
-    default_alias = "literal"
 
-    def __init__(self, model=None, query=None, *args, **kwargs):
+    def __init__(self, model=None, query=None, values=None, *args, **kwargs):
         query = query or sql.LiteralQuery(model)
         super().__init__(model=model, query=query, *args, **kwargs)
-
-        if model:
-            self.alias = "literal_{}".format(model.__name__)
-        else:
-            self.alias = self.default_alias
+        if values:
+            self.append(values)
 
     def set_alias(self, alias):
         self.alias = alias
