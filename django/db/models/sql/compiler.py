@@ -1278,16 +1278,21 @@ class SQLInsertReturningCompiler(SQLInsertCompiler):
 
     def as_sql(self):
         [(i_sql, i_params)] = super().as_sql()
+        print("full sql is", super().as_sql())
         print("i_sql is", i_sql)
         print("i_params is", i_params)
         # Needs aliases and colnames
-        if self.query.returning:
-            fields, f_params = self.query.get_return_fields()
-            i_sql = "{sql} RETURNING ({fields})".format(
-                sql=i_sql,
-                fields=", ".join(field for field in fields)
-            )
-            i_params = i_params + tuple(f_params)
+        if self.query.values_select:
+            fields = self.query.values_select
+        elif self.query.default_cols:
+            fields = self.get_default_columns()
+            fields = [
+                sql for sql, _ in
+                (self.compile(col, select_format=True) for col in fields)]
+        i_sql = "{sql} RETURNING ({fields})".format(
+            sql=i_sql,
+            fields=", ".join(fields)
+        )
         return i_sql, i_params
 
 

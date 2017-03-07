@@ -188,15 +188,21 @@ class InsertQuery(Query):
 class InsertReturningQuery(InsertQuery):
     compiler = 'SQLInsertReturningCompiler'
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.returning = []
+#    def set_values(self, field_names):
+#        self.values_select = field_names
+#        if self.model:
+#            self.fields = [self.model._meta.get_field(field_name) for field_name in field_names]
 
-    def set_returning(self, fields):
-        self.returning = fields
+    def clone(self, klass=None, **kwargs):
+        return super().clone(
+            klass,
+            fields=self.fields,
+            objs=self.objs,
+            raw=self.raw,
+            **kwargs)
 
     def get_return_fields(self):
-        return [field for field in self.returning], []
+        return self.values_select, []
 
 
 class AggregateQuery(Query):

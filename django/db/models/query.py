@@ -755,8 +755,8 @@ class QuerySet:
         clone = self._clone()
         clone.query = self.query.clone(sql.InsertReturningQuery)
         if fields:
-            fields = [model._meta.get_field(f) for f in fields]
-        query.insert_values(fields, objs, raw=raw)
+            fields = [self.model._meta.get_field(f) for f in fields]
+        clone.query.insert_values(fields, objs, raw=raw)
         return clone
 
     def with_select(self, qs, *filters):
