@@ -268,10 +268,17 @@ class LiteralQuery(Query):
         self.field_names = None
         self.objs = []
 
-    def set_fields(self, field_names):
-        self.field_names = field_names
+    def set_values(self, field_names):
+        self.values_select = field_names
         if self.model:
             self.fields = [self.model._meta.get_field(field_name) for field_name in field_names]
+
+    def clone(self, klass=None, **kwargs):
+        return super().clone(
+            klass,
+            fields=self.fields,
+            objs=self.objs,
+            **kwargs)
 
     def clear_values(self):
         self.objs = []
@@ -280,4 +287,4 @@ class LiteralQuery(Query):
         self.objs.extend(objs)
 
     def get_return_fields(self):
-        return self.field_names, []
+        return self.values_select, []

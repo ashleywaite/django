@@ -1369,7 +1369,7 @@ class SQLLiteralCompiler(SQLCompiler):
     def assemble_raw_params(self, value_rows):
         fields = range(len(value_rows[0]))
         return [
-            row[field] for x in fields for row in value_rows
+            row[field] for field in fields for row in value_rows
         ]
 
     def assemble_named_params(self, value_rows, field_names):
@@ -1383,12 +1383,12 @@ class SQLLiteralCompiler(SQLCompiler):
          that correspond with the field names.
         """
         if not value_rows:
-            return [], []
+            return "", []
 
         if field_names and self.has_named_attrs():
-            params = assemble_named_params(value_rows, field_names)
+            params = self.assemble_named_params(value_rows, field_names)
         else:
-            params = assemble_raw_params(value_rows)
+            params = self.assemble_raw_params(value_rows)
 
         row_ph = "({})".format(", ".join(["%s"] * len(fields)))
         sql = ", ".join([row_ph] * len(value_rows))
@@ -1407,7 +1407,7 @@ class SQLLiteralCompiler(SQLCompiler):
         as the total number of '%s's in the corresponding placeholder row.
         """
         if not value_rows:
-            return [], []
+            return "", []
 
         field_map = self.build_field_map(fields)
         params = [
@@ -1450,7 +1450,7 @@ class SQLLiteralCompiler(SQLCompiler):
                 fields=self.query.fields, value_rows=self.query.objs)
         else:
             values_sql, params = self.assemble_as_sql(
-                field_names=self.query.field_names, value_rows=self.query.objs)
+                field_names=self.query.values_select, value_rows=self.query.objs)
 
         return "VALUES {}".format(values_sql), params
 
