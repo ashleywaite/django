@@ -1186,6 +1186,12 @@ class SQLUpdateCompiler(SQLCompiler):
             ', '.join(values),
         ]
         where, params = self.compile(self.query.where)
+        if self.query.extra_tables:
+            from_, f_params = self.get_from_clause()
+            result.append('FROM')
+            result.extend(from_)
+            params.extend(f_params)
+
         if where:
             result.append('WHERE %s' % where)
         return ' '.join(result), tuple(update_params + params)
@@ -1277,7 +1283,26 @@ class SQLAggregateCompiler(SQLCompiler):
 class SQLInsertReturningCompiler(SQLInsertCompiler):
 
     def as_sql(self):
-        [(i_sql, i_params)] = super().as_sql()
+        i_sql, i_params = super().as_sql()[0]
+        # Needs aliases and colnames
+        if self.query.values_select:
+            fields = self.query.values_select
+        elif self.query.default_cols:
+            fields = self.get_default_columns()
+            fields = [
+                sql for sql, _ in
+                (self.compile(col, select_format=True) for col in fields)]
+        i_sql = "{sql} RETURNING ({fields})".format(
+            sql=i_sql,
+            fields=", ".join(fields)
+        )
+        return i_sql, i_params
+
+
+class SQLUpdateReturningCompiler(SQLUpdateCompiler):
+
+    def as_sql(self):
+        i_sql, i_params = super().as_sql()
         # Needs aliases and colnames
         if self.query.values_select:
             fields = self.query.values_select
@@ -1332,10 +1357,12 @@ class SQLWithCompiler():
             params.extend(w_params)
 
         b_sql, b_params = self.base_compiler.as_sql()
-        result.append(b_sql)
         params.extend(b_params)
 
-        return "WITH {}".format(", ".join(result)), tuple(params)
+        return "WITH {withs} {base}".format(
+            withs=", ".join(result),
+            base=b_sql
+        ), tuple(params)
 
     def __getattr__(self, attr):
         # Pretend to be the compiler of the base query unless it's specific to this

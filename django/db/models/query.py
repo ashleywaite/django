@@ -742,13 +742,12 @@ class QuerySet:
     # PUBLIC METHODS THAT ALTER ATTRIBUTES AND RETURN A NEW QUERYSET #
     ##################################################################
 
-    def with_query(self, query, *filters):
+    def attach(self, *querysets):
         if not isinstance(self.query, sql.WithQuery):
             self.query = sql.WithQuery(self.query)
 
-        self.query.add_with(query)
-        if filters:
-            self.filter(*filters)
+        for qs in querysets:
+            self.query.add_with(qs.query)
         return self
 
     def as_insert(self, objs, fields=None, raw=False):
@@ -759,8 +758,14 @@ class QuerySet:
         clone.query.insert_values(fields, objs, raw=raw)
         return clone
 
-    def with_select(self, qs, *filters):
-        return self.with_query(qs.query, *filters)
+    def as_update(self, **kwargs):
+        clone = self._clone()
+        clone.query = self.query.clone(sql.UpdateReturningQuery)
+        self._for_write = True
+        clone.query.add_update_values(kwargs)
+        # Clear any annotations so that they won't be present in subqueries.
+        clone.query._annotations = None
+        return clone
 
     def with_literals(self, qs):
         pass

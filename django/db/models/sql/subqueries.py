@@ -14,7 +14,7 @@ from django.db.models.sql.query import Query
 
 __all__ = [
     'DeleteQuery', 'UpdateQuery', 'InsertQuery', 'AggregateQuery',
-    'LiteralQuery', 'WithQuery', 'InsertReturningQuery']
+    'LiteralQuery', 'WithQuery', 'InsertReturningQuery', 'UpdateReturningQuery']
 
 
 class DeleteQuery(Query):
@@ -169,6 +169,10 @@ class UpdateQuery(Query):
                 query.add_filter(('pk__in', self.related_ids))
             result.append(query)
         return result
+
+
+class UpdateReturningQuery(UpdateQuery):
+    compiler = 'SQLUpdateReturningCompiler'
 
 
 class InsertQuery(Query):
