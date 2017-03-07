@@ -1278,9 +1278,6 @@ class SQLInsertReturningCompiler(SQLInsertCompiler):
 
     def as_sql(self):
         [(i_sql, i_params)] = super().as_sql()
-        print("full sql is", super().as_sql())
-        print("i_sql is", i_sql)
-        print("i_params is", i_params)
         # Needs aliases and colnames
         if self.query.values_select:
             fields = self.query.values_select
@@ -1312,7 +1309,7 @@ class SQLWithCompiler():
         # Collect all with queries to compile
         with_queries = self.query.collect_queries()
 
-        result, params = ["WITH"], []
+        result, params = [], []
 
         for query in with_queries:
             w_sql, w_params = query.get_compiler(self.using, self.connection).as_sql()
@@ -1338,7 +1335,7 @@ class SQLWithCompiler():
         result.append(b_sql)
         params.extend(b_params)
 
-        return " ".join(result), tuple(params)
+        return "WITH {}".format(", ".join(result)), tuple(params)
 
     def __getattr__(self, attr):
         # Pretend to be the compiler of the base query unless it's specific to this

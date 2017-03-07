@@ -188,11 +188,6 @@ class InsertQuery(Query):
 class InsertReturningQuery(InsertQuery):
     compiler = 'SQLInsertReturningCompiler'
 
-#    def set_values(self, field_names):
-#        self.values_select = field_names
-#        if self.model:
-#            self.fields = [self.model._meta.get_field(field_name) for field_name in field_names]
-
     def clone(self, klass=None, **kwargs):
         return super().clone(
             klass,
