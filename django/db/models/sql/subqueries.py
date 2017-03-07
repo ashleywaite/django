@@ -174,6 +174,11 @@ class UpdateQuery(Query):
 class UpdateReturningQuery(UpdateQuery):
     compiler = 'SQLUpdateReturningCompiler'
 
+    def clone(self, klass=None, **kwargs):
+        clone = super().clone(klass, **kwargs)
+        clone.values = self.values
+        return clone
+
 
 class InsertQuery(Query):
     compiler = 'SQLInsertCompiler'
@@ -250,8 +255,8 @@ class WithQuery(Query):
             query.with_alias for query in queries
             if query.with_alias not in self.base_query.extra_tables])
 
-    def clone(self):
-        base_clone = self.base_query.clone()
+    def clone(self, klass=None, **kwargs):
+        base_clone = self.base_query.clone(klass, **kwargs)
         clone = WithQuery(base_clone)
         clone.queries = self.queries
         return clone

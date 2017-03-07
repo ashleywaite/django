@@ -1151,6 +1151,8 @@ class QuerySet:
 
     def ref(self, field):
         # These are not validated
+        if isinstance(self.query, sql.WithQuery):
+            return CTERef(cte=self.query.base_query, field=field)
         return CTERef(cte=self.query, field=field)
 
 

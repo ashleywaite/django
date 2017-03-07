@@ -1317,6 +1317,9 @@ class SQLUpdateReturningCompiler(SQLUpdateCompiler):
         )
         return i_sql, i_params
 
+    def pre_sql_setup(self):
+        pass
+        
 
 class SQLWithCompiler():
 
@@ -1333,7 +1336,6 @@ class SQLWithCompiler():
     def as_sql(self):
         # Collect all with queries to compile
         with_queries = self.query.collect_queries()
-
         result, params = [], []
 
         for query in with_queries:
