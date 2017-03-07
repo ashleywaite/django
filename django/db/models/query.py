@@ -742,23 +742,25 @@ class QuerySet:
     # PUBLIC METHODS THAT ALTER ATTRIBUTES AND RETURN A NEW QUERYSET #
     ##################################################################
 
-    def with_query(self, query):
+    def with_query(self, query, *filters):
         if not isinstance(self.query, sql.WithQuery):
             self.query = sql.WithQuery(self.query)
 
         self.query.add_with(query)
+        if filters:
+            self.filter(*filters)
         return self
 
-    def with_insert(self, model, objs, fields=None, returning=None, raw=False):
-        query = sql.InsertReturningQuery(model)
+    def as_insert(self, objs, fields=None, raw=False):
+        clone = self._clone()
+        clone.query = self.query.clone(sql.InsertReturningQuery)
         if fields:
             fields = [model._meta.get_field(f) for f in fields]
         query.insert_values(fields, objs, raw=raw)
-        query.set_returning(returning)
-        return self.with_query(query)
+        return clone
 
-    def with_select(self, qs):
-        return self.with_query(qs.query)
+    def with_select(self, qs, *filters):
+        return self.with_query(qs.query, *filters)
 
     def with_literals(self, qs):
         pass
@@ -1298,10 +1300,6 @@ class LiteralQuerySet(QuerySet):
         if isinstance(self.queryset, QuerySet):
             self.query_sql, self.params = self.queryset.as_sql(connection)
             self.cte_def = (self.alias or self.default_alias)
-
-    def only(self, *fields):
-        self.query.set_fields(fields)
-        return self
 
     def defer(self, *fields):
         raise NotImplementedError("LiteralQuerySet does not implement defer()")
