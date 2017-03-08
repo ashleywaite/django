@@ -1473,12 +1473,20 @@ class SQLLiteralCompiler(SQLCompiler):
             for field in self.query.field_names
         ])
 
+    def get_fields_list(self, obj):
+        found = []
+        for field_name in self.query.values_select:
+            if hasattr(obj, field_name):
+                found.append(self.query.get_meta().get_field(field_name))
+        return found
+
     def as_sql(self):
         """ Create the SQL for a set of literal values used as a CTE """
+        fields = self.get_fields_list(self.query.objs[0])
 
-        if self.query.fields:
+        if fields:
             values_sql, params = self.assemble_fields_as_sql(
-                fields=self.query.fields, value_rows=self.query.objs)
+                fields=fields, value_rows=self.query.objs)
         else:
             values_sql, params = self.assemble_as_sql(
                 field_names=self.query.values_select, value_rows=self.query.objs)
