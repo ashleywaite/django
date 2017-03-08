@@ -236,15 +236,16 @@ class WithQuery(Query):
         queries = []
 
         # Collect all queries attached to this or any attached queries
-        for i, query in enumerate(self.queries) if query not in queries:
-            query_alias = "{}_{}".format(with_alias, i)
-            if isinstance(query, WithQuery):
-                query.base_query.with_alias = query_alias
-                queries.extend(query.collect_queries(with_alias=query_alias))
-                queries.append(query.base_query)
-            else:
-                query.with_alias = query_alias
-                queries.append(query)
+        for i, query in enumerate(self.queries):
+            if query not in queries:
+                query_alias = "{}_{}".format(with_alias, i)
+                if isinstance(query, WithQuery):
+                    query.base_query.with_alias = query_alias
+                    queries.extend(query.collect_queries(with_alias=query_alias))
+                    queries.append(query.base_query)
+                else:
+                    query.with_alias = query_alias
+                    queries.append(query)
 
         self.add_extra_tables(queries)
 
