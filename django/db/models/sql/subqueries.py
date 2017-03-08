@@ -236,7 +236,7 @@ class WithQuery(Query):
         queries = []
 
         # Collect all queries attached to this or any attached queries
-        for i, query in enumerate(self.queries):
+        for i, query in enumerate(self.queries) if query not in queries:
             query_alias = "{}_{}".format(with_alias, i)
             if isinstance(query, WithQuery):
                 query.base_query.with_alias = query_alias

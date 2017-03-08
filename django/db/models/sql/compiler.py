@@ -1319,7 +1319,7 @@ class SQLUpdateReturningCompiler(SQLUpdateCompiler):
 
     def pre_sql_setup(self):
         pass
-        
+
 
 class SQLWithCompiler():
 
